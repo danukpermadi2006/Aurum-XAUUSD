@@ -42,7 +42,7 @@ input,select{background:#0b0f16;border:1px solid #243044;border-radius:10px;padd
   </div>
  </section>
  <aside class="lg:col-span-4 space-y-4 min-w-0 lg:sticky lg:top-[72px] lg:self-start lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto">
-  <div class="card p-4"><h2 class="font-bold gold mb-2">AI analyst</h2>
+  <div class="card p-4"><h2 class="font-bold gold mb-2">AI analyst <span id="am" class="mono text-[10px] text-slate-400 font-normal"></span></h2>
    <div class="flex gap-2 flex-wrap mb-2"><button class="btn" id="aS">Sentimen 10 berita</button><button class="btn" id="aP">Prediksi 1–4 jam</button></div>
    <div id="ac" class="text-[13px] leading-relaxed space-y-2 max-h-[340px] overflow-y-auto mb-2 pr-1"></div>
    <div class="flex gap-2"><input id="ai" class="flex-1 min-w-0" placeholder="Dampak CPI nanti malam ke gold?"><button class="btn" id="aG">Kirim</button></div></div>
@@ -59,18 +59,18 @@ input,select{background:#0b0f16;border:1px solid #243044;border-radius:10px;padd
  <div id="hs" class="mt-2 text-[11px] text-slate-500 flex flex-wrap gap-1.5 items-center"></div><div id="sr" class="mt-2 max-h-[50vh] overflow-y-auto"></div></div></div>
 
 <div id="cf" class="ov"><div class="card pop max-w-md mx-auto p-4 space-y-3"><h3 class="font-bold gold">Pengaturan</h3>
- <select id="cp" class="w-full"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI</option></select>
+ <select id="cp" class="w-full"><option value="gemini">Google AI Studio (Gemini)</option><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI</option><option value="free">Tanpa API key (gratis)</option></select>
  <input id="ck" type="password" class="w-full" placeholder="API key (disimpan lokal di browser)"><input id="cm" class="w-full" placeholder="Model (kosong = default)">
  <label class="flex gap-2 text-sm items-center"><input type="checkbox" id="cs" style="padding:0"> Sound alert</label>
  <div class="flex gap-2"><button class="btn" id="cn">Aktifkan notifikasi browser</button><button class="btn ml-auto" id="cx">Simpan</button></div>
- <p class="text-[11px] text-slate-500">Key dikirim langsung dari browser ke penyedia AI, tanpa server perantara. Bukan nasihat finansial.</p></div></div>
+ <p class="text-[11px] text-slate-500">Gemini: key gratis di <a class="underline text-amber-300" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Kolom key kosong → AI otomatis memakai layanan gratis Pollinations (±1 permintaan/15 dtk, data dikirim ke pihak ketiga); jika gagal, jatuh ke analisis lokal.</p><p class="text-[11px] text-slate-500">Key dikirim langsung dari browser ke penyedia AI, tanpa server perantara. Bukan nasihat finansial.</p></div></div>
 <div id="ts" class="fixed bottom-3 right-3 left-3 sm:left-auto sm:w-96 z-[60] space-y-2"></div>
 
 <script>
 "use strict";
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LS={g:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const S={items:[],cal:[],st:{},alerts:LS.g('al',[]),cfg:LS.g('cfg',{prov:'anthropic',key:'',model:'',sound:false}),src:'ALL',chat:[]};
+const S={items:[],cal:[],st:{},alerts:LS.g('al',[]),cfg:LS.g('cfg',{prov:'gemini',key:'',model:'',sound:false}),src:'ALL',chat:[]};
 const H=s=>{let h=5381;for(const c of s.toLowerCase())h=(h*33)^c.charCodeAt(0);return(h>>>0).toString(36)};
 const hm=(t,z)=>new Date(t).toLocaleTimeString('en-GB',{timeZone:z,hour:'2-digit',minute:'2-digit'});
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?'baru saja':m<60?m+'m lalu':m<1440?Math.floor(m/60)+'j lalu':Math.floor(m/1440)+'h lalu'};
@@ -85,19 +85,21 @@ const SRC=[
 {id:'BBG',n:'Bloomberg',u:'https://feeds.bloomberg.com/markets/news.rss',c:'#7c3aed'},
 {id:'RTR',n:'Reuters',u:GN('site:reuters.com (gold OR Fed OR dollar OR inflation OR oil OR tariffs OR war)'),c:'#e8710a',gn:1},
 {id:'KTC',n:'Kitco',u:GN('site:kitco.com gold'),c:'#b8960b',gn:1},
-{id:'INV',n:'Investing.com',u:'https://www.investing.com/rss/news_11.rss',c:'#d98a00'},
+{id:'INV',n:'Investing.com',u:['https://www.investing.com/rss/news_11.rss',GN('site:investing.com (gold OR Fed OR dollar OR inflation OR oil OR economy OR yields)')],c:'#d98a00'},
 {id:'CNN',n:'CNN Business',u:GN('site:cnn.com business economy'),c:'#b91c1c',gn:1},
 {id:'AJ',n:'Al Jazeera',u:'https://www.aljazeera.com/xml/rss/all.xml',c:'#a47c2c'}];
 
 /* ===== FETCH: langsung dulu, lalu CORS proxy berurutan; `ok` memvalidasi isi supaya halaman error proxy ditolak ===== */
 const PX=[u=>u,u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),u=>'https://corsproxy.io/?url='+encodeURIComponent(u),u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)];
 async function fx(url,ok=t=>t.length>20){for(const f of PX){try{const r=await fetch(f(url),{signal:AbortSignal.timeout(9000)});if(r.ok){const t=await r.text();if(ok(t))return t}}catch{}}throw new Error('semua jalur (langsung + proxy) gagal')}
-const clean=(s,g)=>g?s.replace(/\s-\s[^-]+$/,''):s,strip=s=>(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,300);
-function parseRSS(x,s){const d=new DOMParser().parseFromString(x,'text/xml');return[...d.querySelectorAll('item,entry')].map(e=>{const g=t=>e.querySelector(t)?.textContent?.trim()||'';
- return{title:clean(g('title'),s.gn),link:g('link')||e.querySelector('link')?.getAttribute('href')||'',desc:strip(g('description')||g('summary')),t:+new Date(g('pubDate')||g('published')||g('updated')),src:s.id}}).filter(i=>i.title&&i.t)}
-async function getFeed(s){try{const a=parseRSS(await fx(s.u,t=>/<(rss|feed|item)/i.test(t)),s);if(!a.length)throw 0;return a}
- catch{const r=await(await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(s.u),{signal:AbortSignal.timeout(9000)})).json(); // fallback terakhir
-  if(r.status!=='ok')throw new Error(r.message||'rss2json gagal');return r.items.map(i=>({title:clean(i.title,s.gn),link:i.link,desc:strip(i.description),t:+new Date(i.pubDate.replace(' ','T')+'Z'),src:s.id}))}}
+const pd=s=>/^\d{4}-\d\d-\d\d[ T]\d\d:\d\d(:\d\d)?$/.test(s)?+new Date(s.replace(' ','T')+'Z'):+new Date(s),clean=(s,g)=>g?s.replace(/\s-\s[^-]+$/,''):s,strip=s=>(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,300);
+function parseRSS(x,s,gn){const d=new DOMParser().parseFromString(x,'text/xml');return[...d.querySelectorAll('item,entry')].map(e=>{const g=t=>e.querySelector(t)?.textContent?.trim()||'';
+ return{title:clean(g('title'),gn),link:g('link')||e.querySelector('link')?.getAttribute('href')||'',desc:strip(g('description')||g('summary')),t:pd(g('pubDate')||g('published')||g('updated')),src:s.id}}).filter(i=>i.title&&i.t)}
+async function getFeed(s){let err;for(const u of[].concat(s.u)){const gn=u.includes('news.google.com'); // s.u boleh array: dicoba berurutan
+ try{const a=parseRSS(await fx(u,t=>/<(rss|feed|item)/i.test(t)),s,gn);if(a.length)return a}catch(e){err=e}
+ try{const r=await(await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(u),{signal:AbortSignal.timeout(9000)})).json();
+  if(r.status==='ok'&&r.items.length)return r.items.map(i=>({title:clean(i.title,gn),link:i.link,desc:strip(i.description),t:pd(i.pubDate),src:s.id}));err=new Error(r.message||'feed kosong')}catch(e){err=e}}
+ throw err||new Error('gagal')}
 
 /* ===== MESIN ANALISIS XAUUSD (berbasis aturan) =====
  tipe: m=data makro (kuat→USD naik→Gold turun) i=inverse (naik→Gold naik) h=safe haven f=kebijakan bank sentral g=berita emas langsung */
@@ -182,19 +184,40 @@ function rCal(){const n=Date.now(),L=S.cal.filter(e=>e.t>n-36e5).sort((a,b)=>a.t
  return`<div class="py-2 border-b border-white/5 text-[12.5px]"><div class="flex gap-1.5 items-center flex-wrap"><span class="b ${e.impact.toUpperCase()}">${e.impact.toUpperCase()}</span><b>${e.country}</b><span class="font-semibold">${esc(e.title)}</span></div>
  <div class="mono text-[10.5px] text-slate-400 mt-0.5">${new Date(e.t).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',weekday:'short',hour:'2-digit',minute:'2-digit'})} WIB · ${cd}${e.forecast?' · F '+esc(e.forecast):''}${e.previous?' · P '+esc(e.previous):''}</div></div>`}).join('')}
 
-/* ===== AI (Anthropic / OpenAI, key milik user) ===== */
-async function ai(msgs,sys='Kamu analis pasar emas (XAUUSD) senior. Jawab ringkas, jelas, dalam Bahasa Indonesia, berdasarkan data yang diberikan; jangan mengarang angka.'){
- const c=S.cfg;if(!c.key)throw new Error('Isi API key di Pengaturan (ikon ⚙️) terlebih dulu.');
- if(c.prov==='openai'){const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.key},body:JSON.stringify({model:c.model||'gpt-4o-mini',messages:[{role:'system',content:sys},...msgs]})}),j=await r.json();if(!r.ok)throw new Error(j.error?.message||'OpenAI '+r.status);return j.choices[0].message.content}
- const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':c.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:c.model||'claude-sonnet-5-5',max_tokens:900,system:sys,messages:msgs})}),j=await r.json();
- if(!r.ok)throw new Error(j.error?.message||'Anthropic '+r.status);return j.content.map(b=>b.text||'').join('')}
+/* ===== AI: Gemini (Google AI Studio) / Claude / OpenAI jika ada key; tanpa key → AI gratis (Pollinations) → analisis lokal ===== */
+const DEF='Kamu analis pasar emas (XAUUSD) senior. Jawab ringkas, jelas, dalam Bahasa Indonesia, berdasarkan data yang diberikan; jangan mengarang angka.';
+const mode=()=>{$('#am').textContent=S.cfg.key?S.cfg.prov:'gratis · tanpa key'},sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function free(msgs,sys){const w=15500-(Date.now()-(S.lf||0));if(w>0)await sleep(w);S.lf=Date.now(); // anonim: ±1 permintaan/15 dtk
+ const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',temperature:.4,messages:[{role:'system',content:sys},...msgs]}),signal:AbortSignal.timeout(60000)});
+ if(!r.ok)throw new Error(r.status===429?'batas gratis tercapai':'layanan gratis error '+r.status);
+ const t=(await r.json()).choices?.[0]?.message?.content;if(!t)throw new Error('respons kosong');
+ return t.replace(/\n+(?:---\s*\n+)?[^\n]*(?:🌸|Pollinations)[\s\S]*$/i,'')}
+async function ai(msgs,sys=DEF,local){const c=S.cfg,p=c.key?c.prov:'free';
+ if(p==='gemini'){let e;for(const m of c.model?[c.model]:['gemini-flash-latest','gemini-2.5-flash','gemini-flash-lite-latest']){
+   const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(c.key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:msgs.map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]})),generationConfig:{temperature:.4,maxOutputTokens:4096}})}),j=await r.json();
+   if(r.ok)return(j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('')||'(respons kosong / diblokir filter Gemini)';
+   e=new Error(j.error?.message||'Gemini '+r.status);if(r.status!==404)throw e}throw e}
+ if(p==='openai'){const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.key},body:JSON.stringify({model:c.model||'gpt-4o-mini',messages:[{role:'system',content:sys},...msgs]})}),j=await r.json();if(!r.ok)throw new Error(j.error?.message||'OpenAI '+r.status);return j.choices[0].message.content}
+ if(p==='anthropic'){const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':c.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:c.model||'claude-sonnet-5-5',max_tokens:1500,system:sys,messages:msgs})}),j=await r.json();if(!r.ok)throw new Error(j.error?.message||'Anthropic '+r.status);return j.content.map(b=>b.text||'').join('')}
+ try{return await free(msgs,sys)}catch(e){if(!local)throw e;return`ℹ Mode lokal (AI gratis tidak tersedia: ${e.message}). Isi API key Gemini di ⚙️ untuk hasil maksimal.\n`+local()}}
+
+/* ===== MODE LOKAL (tanpa AI): ringkasan dari mesin aturan + teknikal ===== */
+const net=L=>L.reduce((a,i)=>a+i.sc,0);
+function lSent(){const L=S.items.slice(0,10),c=d=>L.filter(i=>i.dir===d).length,sc=Math.max(-100,Math.min(100,Math.round(net(L)*12)));
+ return`**Skor sentimen XAUUSD: ${sc>0?'+':''}${sc}** (${sc>15?'cenderung bullish':sc<-15?'cenderung bearish':'netral/campuran'})\nBullish ${c('BULL')} · Bearish ${c('BEAR')} · Netral ${c('NEU')}\n**Berita paling berpengaruh:**\n`+(L.filter(i=>i.rel).sort((a,b)=>Math.abs(b.sc)-Math.abs(a.sc)).slice(0,3).map(i=>`- ${i.title} → ${LBL[i.dir]} (${i.cat}): ${i.why}`).join('\n')||'- Tidak ada pemicu kuat di 10 berita terakhir.')}
+function lPred(){const L=S.items.filter(i=>i.rel).slice(0,15),T=S.T,n=net(L),tn=T?(T.e20>T.e50?1:-1)+(T.r>70?-1:T.r<30?1:0):0,a=tn*.6+n/8,b=tn+n/4,d=x=>x>.7?'BULLISH':x<-.7?'BEARISH':'SIDEWAYS',p=x=>Math.min(70,50+Math.round(Math.abs(x)*8)),ev=S.cal.find(e=>e.t>Date.now()&&e.t<Date.now()+4*36e5&&e.impact==='High');
+ return`**1 jam:** ${d(a)} (${p(a)}%)\n**4 jam:** ${d(b)} (${p(b)}%)\nDasar: skor berita ${n>0?'+':''}${n}; ${T?`EMA20 ${T.e20>T.e50?'>':'<'} EMA50, RSI ${T.r.toFixed(0)}, range 24j ${T.lo.toFixed(0)}–${T.hi.toFixed(0)} (support/resistance kasar)`:'teknikal tidak tersedia'}.`+(ev?`\nWaspada: ${ev.country} ${ev.title} (High impact) kurang dari 4 jam lagi, bisa membalik arah.`:'')+'\nEstimasi aturan sederhana, bukan nasihat finansial.'}
+function lChat(q){const a=an(q),w=q.toLowerCase().split(/\W+/).filter(x=>x.length>2),ev=S.cal.filter(e=>e.t>Date.now()&&w.some(x=>e.title.toLowerCase().includes(x))).sort((a,b)=>a.t-b.t).slice(0,2),L=S.items.filter(i=>i.cat===a.cat).slice(0,3);
+ return(a.rel?`**${a.cat}:** ${a.why}\n`:'')+(ev.length?'**Jadwal:**\n'+ev.map(e=>`- ${e.country} ${e.title}, ${new Date(e.t).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',weekday:'short',hour:'2-digit',minute:'2-digit'})} WIB (F ${e.forecast||'-'} / P ${e.previous||'-'})`).join('\n')+'\n':'')+(L.length&&a.rel?'**Berita terkait:**\n'+L.map(i=>`- ${i.title} → ${LBL[i.dir]}`).join('\n'):'')||'Mode lokal hanya menjawab topik yang dikenali (NFP, CPI, FOMC, suku bunga, GDP, DXY, geopolitik, minyak, gold). Isi API key atau coba lagi nanti untuk tanya bebas.'}
+const lSum=i=>`${(i.desc.match(/[^.!?]+[.!?]/g)||[i.desc]).slice(0,2).join(' ').trim()||i.title}\nDampak XAUUSD: ${LBL[i.dir]} (${i.imp}) — ${i.why}`;
+
 const ctx=()=>`Waktu: ${new Date().toISOString()} UTC. XAUUSD spot: ${S.px??'n/a'}. Teknikal: ${S.tech||'n/a'}.\nBerita terbaru:\n`+S.items.filter(i=>i.rel).slice(0,15).map(i=>`- [${i.dir}/${i.imp}/${i.cat}] ${i.title} (${i.src}, ${ago(i.t)})`).join('\n')+'\nKalender mendatang:\n'+S.cal.filter(e=>e.t>Date.now()).sort((a,b)=>a.t-b.t).slice(0,6).map(e=>`- ${e.country} ${e.title} ${e.date} F:${e.forecast||'-'} P:${e.previous||'-'}`).join('\n');
 const out=h=>{const d=document.createElement('div');d.className='rounded-xl p-2.5 bg-black/30 border border-white/5';d.innerHTML=h;$('#ac').appendChild(d);$('#ac').scrollTop=1e9;return d};
-async function run(label,msgs,sys){const el=out(`<div class="text-[11px] mono text-amber-300">${label}</div><div class="animate-pulse text-slate-400">AI menganalisis…</div>`);
- try{el.innerHTML=`<div class="text-[11px] mono text-amber-300 mb-1">${label}</div>`+md(await ai(msgs,sys));return el.textContent}catch(e){el.innerHTML=`<span class="text-red-400">${esc(e.message)}</span>`}}
+async function run(label,msgs,sys,local){const el=out(`<div class="text-[11px] mono text-amber-300">${label}</div><div class="animate-pulse text-slate-400">AI menganalisis…</div>`);
+ try{const t=await ai(msgs,sys,local);el.innerHTML=`<div class="text-[11px] mono text-amber-300 mb-1">${label}</div>`+md(t);return t}catch(e){el.innerHTML=`<span class="text-red-400">${esc(e.message)}</span>`}}
 const base='Kamu analis pasar emas (XAUUSD) senior. Jawab dalam Bahasa Indonesia, ringkas, gunakan hanya data konteks ini; jangan mengarang angka.\n';
 async function sum(id){const i=S.items.find(x=>x.id===id),el=$('#m'+id);el.textContent='merangkum…';
- try{el.innerHTML=md(await ai([{role:'user',content:`Ringkas berita ini dalam 2-3 kalimat Bahasa Indonesia, tambah 1 kalimat dampaknya ke XAUUSD:\n${i.title}\n${i.desc}`}]))}catch(e){el.innerHTML=`<span class="text-red-400">${esc(e.message)}</span>`}}
+ try{el.innerHTML=md(await ai([{role:'user',content:`Ringkas berita ini dalam 2-3 kalimat Bahasa Indonesia, tambah 1 kalimat dampaknya ke XAUUSD:\n${i.title}\n${i.desc}`}],undefined,()=>lSum(i)))}catch(e){el.innerHTML=`<span class="text-red-400">${esc(e.message)}</span>`}}
 
 /* ===== PENCARIAN (Ctrl/Cmd+K) — menyaring S.items yang live ===== */
 const CATS=['NFP','CPI','FOMC','Interest Rate','GDP','Unemployment','DXY','Geopolitik','Risiko','Gold','Minyak','Umum'];
@@ -224,18 +247,18 @@ $('#bS').onclick=togS;$('#rel').onchange=rNews;
 ['q','fs','fc','fi','fm','fd'].forEach(k=>$('#'+k).addEventListener(k==='q'?'input':'change',rSearch));
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')saveQ()});
 $('#bC').onclick=()=>{const c=S.cfg;$('#cp').value=c.prov;$('#ck').value=c.key;$('#cm').value=c.model;$('#cs').checked=c.sound;tog('#cf',true)};
-$('#cx').onclick=()=>{S.cfg={prov:$('#cp').value,key:$('#ck').value.trim(),model:$('#cm').value.trim(),sound:$('#cs').checked};LS.s('cfg',S.cfg);tog('#cf',false)};
+$('#cx').onclick=()=>{S.cfg={prov:$('#cp').value,key:$('#ck').value.trim(),model:$('#cm').value.trim(),sound:$('#cs').checked};LS.s('cfg',S.cfg);mode();tog('#cf',false)};
 $('#cn').onclick=async()=>{if(!('Notification'in window))return alert('Browser tidak mendukung notifikasi.');$('#cn').textContent='Notifikasi: '+await Notification.requestPermission()};
-$('#aS').onclick=()=>run('Sentimen 10 berita terbaru',[{role:'user',content:'Dari 10 headline terbaru ini: (1) skor sentimen −100..+100 untuk XAUUSD, (2) tiga tema dominan, (3) berita paling berpengaruh beserta alasannya.\n'+S.items.slice(0,10).map(i=>`- ${i.title} (${i.src}, ${ago(i.t)})`).join('\n')}]);
-$('#aP').onclick=()=>run('Prediksi 1–4 jam',[{role:'user',content:'Prediksi arah XAUUSD untuk 1 jam dan 4 jam ke depan (BULLISH/BEARISH/SIDEWAYS + probabilitas %), level kunci, skenario yang membatalkan prediksi, dan alasan dari berita + teknikal. Akhiri dengan disclaimer 1 kalimat.'}],base+ctx());
+$('#aS').onclick=()=>run('Sentimen 10 berita terbaru',[{role:'user',content:'Dari 10 headline terbaru ini: (1) skor sentimen −100..+100 untuk XAUUSD, (2) tiga tema dominan, (3) berita paling berpengaruh beserta alasannya.\n'+S.items.slice(0,10).map(i=>`- ${i.title} (${i.src}, ${ago(i.t)})`).join('\n')}],undefined,lSent);
+$('#aP').onclick=()=>run('Prediksi 1–4 jam',[{role:'user',content:'Prediksi arah XAUUSD untuk 1 jam dan 4 jam ke depan (BULLISH/BEARISH/SIDEWAYS + probabilitas %), level kunci, skenario yang membatalkan prediksi, dan alasan dari berita + teknikal. Akhiri dengan disclaimer 1 kalimat.'}],base+ctx(),lPred);
 async function chat(){const v=$('#ai').value.trim();if(!v)return;$('#ai').value='';out(`<b class="text-slate-300">Anda:</b> ${esc(v)}`);S.chat.push({role:'user',content:v});
- const r=await run('Claude/AI',S.chat.slice(-8),base+ctx());S.chat.push({role:'assistant',content:r||'(gagal)'})}
+ const r=await run('AI',S.chat.slice(-8),base+ctx(),()=>lChat(v));S.chat.push({role:'assistant',content:r||'(gagal)'})}
 $('#aG').onclick=chat;$('#ai').addEventListener('keydown',e=>{if(e.key==='Enter')chat()});
 
 /* ===== INIT ===== */
 SRC.forEach(s=>$('#fs').insertAdjacentHTML('beforeend',`<option value="${s.id}">${s.n}</option>`));CATS.forEach(c=>$('#fc').insertAdjacentHTML('beforeend',`<option>${c}</option>`));
 const clock=()=>{const n=new Date(),f=z=>n.toLocaleTimeString('en-GB',{timeZone:z});$('#clk').textContent=`WIB ${f('Asia/Jakarta')} · GMT ${f('UTC')}`};
-S.items=LS.g('cache',[]);rTk();rBell();rNews();rCal();clock();
+S.items=LS.g('cache',[]);mode();rTk();rBell();rNews();rCal();clock();
 load();px();tech();loadCal();
 setInterval(load,6e4);setInterval(px,2e4);setInterval(tech,3e5);setInterval(loadCal,3e5);setInterval(clock,1e3);
 addEventListener('load',()=>{try{new TradingView.widget({autosize:true,symbol:'OANDA:XAUUSD',interval:'15',timezone:'Asia/Jakarta',theme:'dark',style:'1',locale:'id',toolbar_bg:'#0b0e14',enable_publishing:false,hide_side_toolbar:true,allow_symbol_change:false,container_id:'tv'})}catch{$('#tv').innerHTML='<div class="p-6 text-red-400 text-sm">Chart TradingView gagal dimuat. Cek koneksi atau matikan adblock untuk halaman ini.</div>'}});
